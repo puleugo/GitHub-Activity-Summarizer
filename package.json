@@ -1,0 +1,40 @@
+{
+  "name": "distant-planetarium",
+  "version": "1.0.0",
+  "description": "GitHub 활동 내역을 월별로 조회하고 AI를 활용하여 요약 회고록을 생성하는 CLI 도구입니다.",
+  "main": "dist/main.js",
+  "bin": {
+    "github-summary": "dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/main.ts",
+    "dev": "ts-node src/main.ts",
+    "summary": "ts-node src/main.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "github",
+    "summary",
+    "ai",
+    "gemini",
+    "cli",
+    "productivity"
+  ],
+  "author": "puleugo",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "cli-progress": "^3.12.0",
+    "commander": "^14.0.2",
+    "dayjs": "^1.11.19",
+    "dotenv": "^17.2.3",
+    "octokit": "^5.0.5"
+  },
+  "devDependencies": {
+    "@types/cli-progress": "^3.11.6",
+    "@types/node": "^25.0.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
