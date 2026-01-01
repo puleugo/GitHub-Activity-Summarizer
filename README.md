@@ -1,4 +1,10 @@
+<p align="center">
+  <img src="assets/og-image.png" alt="GitHub Activity Summarizer Open Graph Image" width="100%" />
+</p>
+
 # GitHub Activity Summarizer (AI Powered)
+
+![Distant Planetarium Banner](assets/og-image.png)
 
 **GitHub 활동 내역을 월별로 조회하고 Google Gemini AI를 활용하여 요약 회고록을 생성하는 CLI 도구입니다.**
 
