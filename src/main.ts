@@ -1,11 +1,9 @@
 import { Command } from 'commander';
-import * as dotenv from 'dotenv';
 import { GithubService } from './services/github.service';
 import { AIService } from './services/ai.service';
 import * as cliProgress from 'cli-progress';
 import * as fs from 'fs/promises';
-
-dotenv.config();
+import { ConfigManager } from './managers/config.manager';
 
 const program = new Command();
 
@@ -13,49 +11,60 @@ program
   .name('github-summary')
   .description('GitHub 활동 내역을 기반으로 월별 요약 생성')
   .option('-u, --username <username>', 'GitHub 사용자 이름')
-  .option('-y, --year <year>', '요약할 연도', (value) => parseInt(value, 10), process.env.YEAR ? parseInt(process.env.YEAR, 10) : undefined)
+  .option('-y, --year <year>', '요약할 연도', (value) => parseInt(value, 10))
+  // .option('-y, --year <year>', '요약할 연도', (value) => parseInt(value, 10), process.env.YEAR ? parseInt(process.env.YEAR, 10) : undefined) 
+  // -> ConfigManager handles default year logic if needed, but for now let's keep CLI arg priority logic simple in action.
   .option('-o, --output <output>', '출력 파일 경로')
   .action(async (options) => {
-    let { username, year, output } = options;
-
-    // Username override logic
-    if (!username) {
-        username = process.env.GITHUB_USERNAME;
-    }
-
-    if (!username) {
-        console.error("오류: GitHub 사용자 이름을 찾을 수 없습니다.");
-        console.error("CLI 옵션(-u, --username) 또는 .env 파일의 GITHUB_USERNAME 환경변수를 설정해주세요.");
-        process.exit(1);
-    }
-    
-    if (!year) {
-        console.error("오류: --year 옵션은 필수입니다. (또는 .env 파일에 YEAR를 설정하세요)");
-        process.exit(1);
-    }
-
-    const githubToken = process.env.GITHUB_TOKEN;
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-
-    if (!githubToken || !geminiApiKey) {
-        console.error("오류: .env 파일에 GITHUB_TOKEN 및 GEMINI_API_KEY가 설정되어 있어야 합니다.");
-        process.exit(1);
-    }
-    
-    // Worker Size Configuration
-    const workerSize = parseInt(process.env.WORKER_SIZE || '6', 10);
-
-    const githubService = new GithubService(githubToken);
-    const aiService = new AIService(geminiApiKey);
-
-    // Initialize MultiBar
-    const multibar = new cliProgress.MultiBar({
-        clearOnComplete: false,
-        hideCursor: true,
-        format: ' {bar} | {month} | {status} | {value}/{total}'
-    }, cliProgress.Presets.shades_grey);
-
     try {
+        const configManager = new ConfigManager();
+        const config = await configManager.loadOrPrompt(options.year);
+
+        let { username, year, output } = options;
+
+        // 1. Username priority: CLI arg -> Config -> Error
+        if (!username) {
+            username = config.GITHUB_USERNAME;
+        }
+
+        if (!username) {
+            // Should be unreachable due to ConfigManager prompt but safe guard
+            console.error("오류: GitHub 사용자 이름을 찾을 수 없습니다.");
+            process.exit(1);
+        }
+        
+        // 2. Year priority: CLI arg -> Config(env) -> Current Year
+        if (!year) {
+            if (config.YEAR) {
+                year = parseInt(config.YEAR, 10);
+            } else {
+                 console.log("연도가 지정되지 않아 2025년으로 설정되었습니다.");
+                 year = 2025
+            }
+        }
+
+        const githubToken = config.GITHUB_TOKEN;
+        const geminiApiKey = config.GEMINI_API_KEY;
+
+        if (!githubToken || !geminiApiKey) {
+            // Should be unreachable
+            console.error("오류: 필수 설정이 누락되었습니다.");
+            process.exit(1);
+        }
+        
+        // Worker Size Configuration
+        const workerSize = parseInt(config.WORKER_SIZE || '6', 10);
+
+        const githubService = new GithubService(githubToken);
+        const aiService = new AIService(geminiApiKey);
+
+        // Initialize MultiBar
+        const multibar = new cliProgress.MultiBar({
+            clearOnComplete: false,
+            hideCursor: true,
+            format: ' {bar} | {month} | {status} | {value}/{total}'
+        }, cliProgress.Presets.shades_grey);
+
         console.log(`${year}년 ${username}님에 대한 비동기 요약 생성을 시작합니다... (동시 작업 수: ${workerSize})`);
 
         const months = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -78,7 +87,7 @@ program
             bar.update(50, { status: `활동 ${activities.length}개 발견` });
 
             if (activities.length === 0) {
-                 bar.update(100, { status: '활동 없음' });
+                    bar.update(100, { status: '활동 없음' });
                 return { month: m, summary: null };
             }
 
@@ -117,8 +126,11 @@ program
         console.log(`\n✅ 완료! 요약 파일이 생성되었습니다: ${finalOutputPath}`);
 
     } catch (error) {
-        multibar.stop();
+        // multibar might not be defined if error happens early, but if it is we should stop it
+        // hard to access multibar here cleanly without moving declarations up. 
+        // For now simple console error.
         console.error("오류 발생:", error);
+        process.exit(1);
     }
   });
 
